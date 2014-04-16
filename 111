@@ -1,0 +1,50 @@
+import android.app.Service;
+import android.content.ContentResolver;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.os.IBinder;
+import android.preference.PreferenceManager;
+import com.google.glass.location.GlassLocationManager;
+import com.google.glass.timeline.TimelineHelper;
+import com.google.glass.timeline.TimelineProvider;
+import com.google.glass.util.SettingsSecure;
+import com.google.googlex.glass.common.proto.MenuItem;
+import com.google.googlex.glass.common.proto.MenuValue;
+import com.google.googlex.glass.common.proto.TimelineItem;
+
+import java.util.UUID;
+
+public class GlassService extends Service {
+
+    private static final String HOME_CARD = "home_card";
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startid){
+        super.onStartCommand(intent, flags, startid);
+        GlassLocationManager.init(this);
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        String homeCardId = preferences.getString(HOME_CARD, null);
+        TimelineHelper tlHelper = new TimelineHelper();
+        ContentResolver cr = getContentResolver();
+        if(homeCardId != null){
+            // find and delete previous home card
+            TimelineItem timelineItem = tlHelper.queryTimelineItem(cr, homeCardId);
+            if (timelineItem!=null && !timelineItem.getIsDeleted()) tlHelper.deleteTimelineItem(this, timelineItem);
+        }
+        // create new home card
+        String id = UUID.randomUUID().toString();
+        MenuItem delOption = MenuItem.newBuilder().setAction(MenuItem.Action.DELETE).build();
+        MenuItem customOption = MenuItem.newBuilder().addValue(MenuValue.newBuilder().setDisplayName("Custom").build()).setAction(MenuItem.Action.BROADCAST).setBroadcastAction("net.multipi.TEST_ACTION").build();
+        TimelineItem.Builder builder = tlHelper.createTimelineItemBuilder(this, new SettingsSecure(cr));
+        TimelineItem item = builder.setId(id).setText("Hello, world!").setIsPinned(true).addMenuItem(customOption).addMenuItem(delOption).build();
+        cr.insert(TimelineProvider.TIMELINE_URI, TimelineHelper.toContentValues(item));
+        preferences.edit().putString(HOME_CARD, id).commit();
+        return START_NOT_STICKY;
+    }
+
+    @Override
+    public IBinder onBind(Intent intent){
+        return null;
+    }
+}
+http://www.pvsm.ru/android-development/40079
